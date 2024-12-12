@@ -1,0 +1,11 @@
+# Node
+node_modules/
+dist/
+out/
+
+# VS Code
+.vscode-test/
+*.vsix
+
+# Logs
+*.log
