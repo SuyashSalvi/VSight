@@ -5,6 +5,7 @@ import * as dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto'; // To generate PKCE challenge
 import { logActivityToApi } from './apiClient';
+import { handleTextChange, handleFileSave, setUserId } from './eventListeners';
 
 // Load environment variables
 const envPath = path.resolve(__dirname, '..', '.env');
@@ -51,7 +52,15 @@ let codeVerifier: string;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension activated');
-    let userId: string | undefined;
+    // A map to store save frequencies for each file
+    const fileSaveFrequency: Map<string, number> = new Map();
+    // Retrieve user ID from the login process
+    let userId: string | undefined = context.globalState.get<string>('userId');
+    if (userId) {
+        setUserId(userId);
+    } else {
+        console.warn('User ID not found. Ensure login is completed.');
+    }
 
     // Register the login command
     const loginCommand = vscode.commands.registerCommand('extension.login', async () => {
@@ -99,51 +108,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(loginCommand);
 
-    // Register a command to track activity
-    // const trackActivityCommand = vscode.commands.registerCommand('extension.trackActivity', async () => {
-    //     if (!userId) {
-    //         vscode.window.showErrorMessage('User is not logged in. Please log in first.');
-    //         return;
-    //     }
-
-    //     const activity = {
-    //         timestamp: new Date().toISOString(),
-    //         command: 'extension.trackActivity',
-    //         user: userId,
-    //         details: 'User triggered the trackActivity command.',
-    //     };
-
-    //     try {
-    //         await logActivityToApi(activity);
-    //         vscode.window.showInformationMessage('Activity tracked successfully!');
-    //     } catch (error) {
-    //         vscode.window.showErrorMessage('Failed to track activity.');
-    //     }
-    // });
-
-    //context.subscriptions.push(trackActivityCommand);
-
-    // Event Listener: Trigger API on File Save
-    const onDidSaveTextDocument = vscode.workspace.onDidSaveTextDocument(async (document) => {
-        if (!userId) {
-            console.warn('User is not logged in. Skipping activity tracking.');
-            return;
-        }
-
-        const activity = {
-            timestamp: new Date().toISOString(),
-            command: 'onDidSaveTextDocument',
-            user: userId, // Use the extracted user ID
-            details: `File saved: ${document.fileName}`,
-        };
-
-        try {
-            await logActivityToApi(activity);
-            vscode.window.showInformationMessage('Activity tracked successfully!');
-        } catch (error) {
-            vscode.window.showErrorMessage('Failed to track activity.');
-        }
-    });
+    // Register event listeners
+    context.subscriptions.push(handleTextChange, handleFileSave);
 }
 
 function parseJwt(token: string): Record<string, any> {
