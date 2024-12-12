@@ -7,7 +7,35 @@ const port = 3001;
 
 // Middleware to parse JSON
 app.use(express.json());
+//I made a change here
+// I also made a change here
+//I also made a change here
+//here as well
 //
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
+
+
+
+
 
 // Ensure database and container are ready
 // ensureDatabaseAndContainer().catch((error) => {
@@ -17,13 +45,6 @@ app.use(express.json());
 
 // API endpoint to log activity
 
-// Log activity to Cosmos DB
-async function logActivity(activity) {
-    //const database = cosmosClient.database(databaseId);
-    //const container = database.container(containerId);
-    //const { resource } = await container.items.create(activity);
-    //return resource;
-}
 
 // API endpoint to track activity
 app.post('/track-activity', async (req, res) => {
