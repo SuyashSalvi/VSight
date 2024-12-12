@@ -14,12 +14,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "helloworld.helloWorld",
-        "title": "Hello World"
+        "command": "extension.login",
+        "title": "Login to Azure"
       },
       {
-        "command": "collaborative.sendEdit",
-        "title": "Send edit"
+        "command": "extension.saveToken",
+        "title": "Save Access Token"
       }
     ]
   },
@@ -44,8 +44,10 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
+    "@azure/msal-node": "^2.16.2",
     "@microsoft/signalr": "^8.0.7",
     "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
     "ws": "^8.18.0"
   }
 }
