@@ -4,6 +4,7 @@ import * as http from 'http';
 import * as dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto'; // To generate PKCE challenge
+import { logActivityToApi } from './apiClient';
 
 // Load environment variables
 const envPath = path.resolve(__dirname, '..', '.env');
@@ -19,9 +20,10 @@ if (result.error) {
 const clientId = process.env.CLIENT_ID;
 const authority = process.env.AUTHORITY;
 const redirectUri = 'http://localhost:3000';
+const apiServerUrl = process.env.API_SERVER_URL;
 
-if (!clientId || !authority) {
-    throw new Error('Environment variables CLIENT_ID and AUTHORITY must be set.');
+if (!clientId || !authority || !apiServerUrl) {
+    throw new Error('Environment variables CLIENT_ID, AUTHORITY and API_SERVER_URL must be set.');
 }
 
 // MSAL configuration
@@ -49,6 +51,7 @@ let codeVerifier: string;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Extension activated');
+    let userId: string | undefined;
 
     // Register the login command
     const loginCommand = vscode.commands.registerCommand('extension.login', async () => {
@@ -77,6 +80,14 @@ export function activate(context: vscode.ExtensionContext) {
             const token = await listenForCallback();
             console.log('Access token received:', token);
 
+            // Extract user ID from the ID token
+            const idToken = token;
+            const decodedToken = parseJwt(idToken); // Decode the JWT
+            userId = decodedToken.oid || decodedToken.sub; // Use 'oid' for Azure AD, 'sub' for personal accounts
+            console.log('User ID:', userId);
+
+            context.globalState.update('userId', userId);
+
             // Store the token securely in globalState
             context.globalState.update('accessToken', token);
             vscode.window.showInformationMessage('Login successful!');
@@ -87,7 +98,66 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     context.subscriptions.push(loginCommand);
+
+    // Register a command to track activity
+    // const trackActivityCommand = vscode.commands.registerCommand('extension.trackActivity', async () => {
+    //     if (!userId) {
+    //         vscode.window.showErrorMessage('User is not logged in. Please log in first.');
+    //         return;
+    //     }
+
+    //     const activity = {
+    //         timestamp: new Date().toISOString(),
+    //         command: 'extension.trackActivity',
+    //         user: userId,
+    //         details: 'User triggered the trackActivity command.',
+    //     };
+
+    //     try {
+    //         await logActivityToApi(activity);
+    //         vscode.window.showInformationMessage('Activity tracked successfully!');
+    //     } catch (error) {
+    //         vscode.window.showErrorMessage('Failed to track activity.');
+    //     }
+    // });
+
+    //context.subscriptions.push(trackActivityCommand);
+
+    // Event Listener: Trigger API on File Save
+    const onDidSaveTextDocument = vscode.workspace.onDidSaveTextDocument(async (document) => {
+        if (!userId) {
+            console.warn('User is not logged in. Skipping activity tracking.');
+            return;
+        }
+
+        const activity = {
+            timestamp: new Date().toISOString(),
+            command: 'onDidSaveTextDocument',
+            user: userId, // Use the extracted user ID
+            details: `File saved: ${document.fileName}`,
+        };
+
+        try {
+            await logActivityToApi(activity);
+            vscode.window.showInformationMessage('Activity tracked successfully!');
+        } catch (error) {
+            vscode.window.showErrorMessage('Failed to track activity.');
+        }
+    });
 }
+
+function parseJwt(token: string): Record<string, any> {
+    const base64Url = token.split('.')[1]; // Get the payload part of the JWT
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+        atob(base64)
+            .split('')
+            .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+            .join('')
+    );
+    return JSON.parse(jsonPayload);
+}
+
 
 async function listenForCallback(): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -117,6 +187,13 @@ async function listenForCallback(): Promise<string> {
                         codeVerifier: codeVerifier, // Include the PKCE code verifier
                     });
                     console.log('Token Response:', tokenResponse);
+
+                    if (tokenResponse) {
+                        const idToken = tokenResponse.idToken;
+                        const decodedToken = parseJwt(idToken); // Decode the JWT
+                        const userId = decodedToken.oid || decodedToken.sub; // 'oid' for AAD, 'sub' for personal accounts
+                        console.log('User ID:', userId);
+                    }
 
                     res.end('Login successful! You can close this page.');
                     server.close();
